@@ -37,32 +37,49 @@ print("\tmov edi, eax")
 print("\tmov esi, eax")
 print("\tmov ebx, eax")
 print("\tadd ebx,", count_default)
+print("\tjmp s0")
+extend_use, extend_total = 0, 0
 for state in range(0, states):
+	uses_extended = False
+	#uses_extended = True
+	for state2 in range(0, states):
+		for symbol, ostate, osymbol, omove in get_for_state(state2):
+			if omove == 1 and ostate == state:
+				uses_extended = True
+				break
+	extend_use += uses_extended
+	extend_total += 1
+	if uses_extended:
+		print("s%dx:" % state)
+		print("\tinc esi")
+		print("\tcmp esi, ebx")
+		print("\tjl s%d" % state)
+		print("\tcall extend")
 	print("s%d:" % state)
+	print("\tmov al, [esi]")
+	later = []
 	for symbol, ostate, osymbol, omove in get_for_state(state):
-		print("\tcmp [esi], byte", symbol)
+		print("\tcmp al, byte", symbol)
 		elab = gensym()
-		print("\tjne", elab)
+		print("\tje", elab)
+		later.append("%s:" % elab)
 		if osymbol != symbol:
-			print("\tmov [esi], byte", osymbol)
+			later.append("\tmov [esi], byte %s" % osymbol)
 		assert omove in (-1,0,1)
 		if omove == 1:
-			print("\tinc esi")
-			print("\tcmp esi, ebx")
-			print("\tjl s%d" % ostate)
-			print("\tcall extend")
-		elif omove == -1:
-			print("\tdec esi")
-			print("\tcmp esi, edi")
-			print("\tjge s%d" % ostate)
-			print("\tcall extend")
-		print("\tjmp s%d" % ostate)
-		print("%s:" % elab)
-	print("xor eax, eax")
-	print("mov al, byte [esi]")
-	print("mov esi, eax")
-	print("add esi, %d" % (state << 8)) # error
-	print("jmp done")
+			later.append("\tjmp s%dx" % ostate)
+		else:
+			if omove == -1:
+				later.append("\tdec esi")
+				# assuming well-formed programs...
+				# later.append("\tcmp esi, edi")
+				# later.append("\tjl error")
+			later.append("\tjmp s%d" % ostate)
+	print("\tmovzx esi, al")
+	print("\tor esi, %d" % (state << 8)) # error
+	print("\tjmp done")
+	for k in later:
+		print(k)
 print("s%d:" % states)
 print("\tmov esi, -1")
 print("done:")
@@ -91,3 +108,4 @@ print("\tmov edi, eax")
 print("\tadd esi, eax")
 print("\tadd ebx, eax")
 print("\tret")
+print("; out: %d %d" % (extend_use, extend_total))
